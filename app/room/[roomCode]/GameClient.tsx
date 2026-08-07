@@ -70,8 +70,10 @@ export default function GameClient({ roomCode, username }: GameClientProps) {
     }, []);
 
     useEffect(() => {
+        const rawHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
+        const host = rawHost.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
         const socket = new PartySocket({
-            host: process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999",
+            host,
             room: roomCode,
         });
         socketRef.current = socket;

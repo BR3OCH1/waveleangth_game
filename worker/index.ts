@@ -62,13 +62,13 @@ export default {
             });
         }
 
-        // Route: /party/:roomId  (mirrors PartyKit's URL scheme)
-        const match = url.pathname.match(/^\/party\/([^/]+)$/);
-        if (!match) {
-            return new Response("Not found", { status: 404 });
+        // Extract room ID from any path format (/parties/main/ROOM, /party/ROOM, or /ROOM)
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length === 0) {
+            return new Response("Wavelength Game Server Live", { status: 200 });
         }
 
-        const roomId = match[1].toUpperCase();
+        const roomId = parts[parts.length - 1].toUpperCase();
         const id = env.ROOMS.idFromName(roomId);
         const stub = env.ROOMS.get(id);
         return stub.fetch(request);
