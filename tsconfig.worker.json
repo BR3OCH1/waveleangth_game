@@ -1,0 +1,20 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": [
+            "ES2022"
+        ],
+        "types": [
+            "@cloudflare/workers-types"
+        ],
+        "moduleResolution": "node",
+        "noEmit": false,
+        "outDir": ".worker-build",
+        "module": "ES2022"
+    },
+    "include": [
+        "worker/**/*.ts",
+        "lib/**/*.ts"
+    ]
+}

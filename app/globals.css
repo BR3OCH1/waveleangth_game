@@ -1,0 +1,379 @@
+@import "tailwindcss";
+
+:root {
+  --bg-deep: #07070f;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.08);
+  --accent-cyan: #22d3ee;
+  --accent-violet: #8b5cf6;
+  --accent-pink: #ec4899;
+  --text-primary: #f1f5f9;
+  --text-muted: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  background-image: radial-gradient(ellipse 80% 60% at 50% -10%,
+      rgba(139, 92, 246, 0.18),
+      transparent),
+    radial-gradient(ellipse 50% 40% at 85% 80%,
+      rgba(34, 211, 238, 0.1),
+      transparent);
+}
+
+/* ── Glassmorphism card ── */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 1.25rem;
+}
+
+/* ── Gradient text ── */
+.gradient-text {
+  background: linear-gradient(135deg,
+      var(--accent-cyan) 0%,
+      var(--accent-violet) 50%,
+      var(--accent-pink) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Input ── */
+.wl-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.625rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.wl-input::placeholder {
+  color: var(--text-muted);
+}
+
+.wl-input:focus {
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+/* ── Primary button ── */
+.wl-btn {
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg,
+      var(--accent-violet),
+      var(--accent-cyan));
+  border: none;
+  border-radius: 0.625rem;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+  letter-spacing: 0.02em;
+}
+
+.wl-btn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+}
+
+.wl-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.wl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Label ── */
+.wl-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* ── Code input (4-char room code) ── */
+.wl-code-input {
+  text-align: center;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+}
+
+/* ── Animations ── */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(139, 92, 246, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease forwards;
+}
+
+/* ── Player badge ── */
+.player-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.625rem;
+  animation: fade-in-up 0.3s ease forwards;
+}
+
+/* ── Status dot ── */
+.status-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.connected {
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade80;
+  animation: pulse-ring 2s infinite;
+}
+
+.status-dot.connecting {
+  background: #fbbf24;
+  box-shadow: 0 0 6px #fbbf24;
+}
+
+.status-dot.error {
+  background: #f87171;
+  box-shadow: 0 0 6px #f87171;
+}
+
+/* ── Avatar circle ── */
+.avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+/* ── Dial (range input) ── */
+.wl-dial {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(to right,
+      var(--accent-cyan) 0%,
+      var(--accent-violet) 50%,
+      var(--accent-pink) 100%);
+  outline: none;
+  border: none;
+  display: block;
+}
+
+.wl-dial::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent-violet);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.wl-dial::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.9);
+  transform: scale(1.15);
+}
+
+.wl-dial:disabled::-webkit-slider-thumb {
+  cursor: default;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: none;
+}
+
+.wl-dial::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent-violet);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+  cursor: pointer;
+}
+
+/* ── Concept badge ── */
+.concept-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 1rem;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.concept-badge .slash {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── Target marker on reveal ── */
+.target-marker {
+  position: absolute;
+  top: -1.8rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #fbbf24;
+  border: 3px solid #fff;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #000;
+  transform: translateX(-50%);
+  animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes pop-in {
+  from {
+    transform: translateX(-50%) scale(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Score display ── */
+@keyframes count-up {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.score-number {
+  animation: count-up 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.3s both;
+  font-size: 4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ── Waiting card pulse ── */
+@keyframes soft-pulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.waiting-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* ── Phase transition ── */
+.phase-enter {
+  animation: fade-in-up 0.45s ease both;
+}
+
+/* ── Target track wrapper (for reveal marker positioning) ── */
+.dial-track-wrap {
+  position: relative;
+  padding-top: 2.5rem;
+}
