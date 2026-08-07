@@ -33,6 +33,16 @@ export default function HomePage() {
     setError("");
   };
 
+  const handleCreateRoom = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let code = "";
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setRoomCode(code);
+    setError("");
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (roomCode.length !== 4) {
@@ -106,9 +116,22 @@ export default function HomePage() {
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
           {/* Room Code */}
           <div>
-            <label htmlFor="room-code" className="wl-label">
-              Room Code
-            </label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label htmlFor="room-code" className="wl-label">
+                Room Code
+              </label>
+              <button
+                type="button"
+                onClick={handleCreateRoom}
+                style={{
+                  background: "none", border: "none", color: "var(--accent-cyan)",
+                  fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", padding: 0,
+                  marginBottom: "0.5rem",
+                }}
+              >
+                ✨ Create Random Code
+              </button>
+            </div>
             <input
               id="room-code"
               ref={codeRef}

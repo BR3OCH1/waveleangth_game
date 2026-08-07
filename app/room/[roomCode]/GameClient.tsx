@@ -43,6 +43,7 @@ const STATUS_LABELS: Record<ConnectionStatus, string> = {
 const DEFAULT_STATE: GameState = {
     phase: "lobby",
     players: [],
+    hostId: null,
     clueGiverId: null,
     targetValue: 50,
     concept: null,
@@ -80,14 +81,15 @@ export default function GameClient({ roomCode, username }: GameClientProps) {
 
         socket.addEventListener("open", () => {
             setConnStatus("connected");
-            setMyId(socket.id);
             send({ type: "join", username });
         });
 
         socket.addEventListener("message", (ev: MessageEvent) => {
             try {
                 const msg = JSON.parse(ev.data as string) as ServerMessage;
-                if (msg.type === "game_state") {
+                if (msg.type === "init") {
+                    setMyId(msg.id);
+                } else if (msg.type === "game_state") {
                     setGame(msg.state);
                 }
             } catch { /* ignore */ }
@@ -102,13 +104,9 @@ export default function GameClient({ roomCode, username }: GameClientProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomCode, username]);
 
-    // Sync myId after socket reconnects (PartySocket may reassign id)
-    useEffect(() => {
-        if (socketRef.current?.id) setMyId(socketRef.current.id);
-    });
-
     // ── Role flags ──────────────────────────────────────────────────────────────
     const isClueGiver = !!myId && myId === game.clueGiverId;
+    const isHost = !!myId && myId === game.hostId;
 
     // ── Dial drag handler (throttled via requestAnimationFrame) ─────────────────
     const rafRef = useRef<number | null>(null);
@@ -133,15 +131,34 @@ export default function GameClient({ roomCode, username }: GameClientProps) {
 
     const StatusBar = () => (
         <div style={{
-            display: "flex", alignItems: "center", gap: "0.5rem",
-            padding: "0.5rem 0.875rem", borderRadius: "999px",
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-            width: "fit-content", marginBottom: "1.5rem",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: "1.5rem", width: "100%",
         }}>
-            <span className={`status-dot ${connStatus}`} />
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {STATUS_LABELS[connStatus]}
-            </span>
+            <div style={{
+                display: "flex", alignItems: "center", gap: "0.5rem",
+                padding: "0.5rem 0.875rem", borderRadius: "999px",
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+            }}>
+                <span className={`status-dot ${connStatus}`} />
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    {STATUS_LABELS[connStatus]}
+                </span>
+            </div>
+
+            {/* Admin Reset Button */}
+            {game.phase !== "lobby" && (
+                <button
+                    onClick={() => send({ type: "reset_game" })}
+                    style={{
+                        background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+                        color: "#f87171", borderRadius: "999px", padding: "0.35rem 0.75rem",
+                        fontSize: "0.75rem", cursor: "pointer", fontWeight: 600,
+                    }}
+                    title="Reset game back to lobby"
+                >
+                    ⚙️ {isHost ? "Reset Room (Host)" : "Reset Room"}
+                </button>
+            )}
         </div>
     );
 
@@ -152,7 +169,17 @@ export default function GameClient({ roomCode, username }: GameClientProps) {
                     <span className="avatar" style={{ background: getAvatarColor(p.id), color: "#fff" }}>
                         {p.username[0]?.toUpperCase() ?? "?"}
                     </span>
-                    <span style={{ fontWeight: 500, fontSize: "0.95rem", flex: 1 }}>{p.username}</span>
+                    <span style={{ fontWeight: 500, fontSize: "0.95rem", flex: 1 }}>
+                        {p.username}
+                        {p.id === game.hostId && " 👑"}
+                    </span>
+                    {p.id === game.hostId && (
+                        <span style={{
+                            fontSize: "0.7rem", color: "#a78bfa",
+                            background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.25)",
+                            borderRadius: "999px", padding: "0.1rem 0.5rem",
+                        }}>Host</span>
+                    )}
                     {p.id === game.clueGiverId && (
                         <span style={{
                             fontSize: "0.7rem", color: "#fbbf24",
@@ -196,13 +223,23 @@ export default function GameClient({ roomCode, username }: GameClientProps) {
                 ) : <PlayerList />}
             </div>
 
-            <button
-                className="wl-btn"
-                onClick={() => send({ type: "start_game" })}
-                disabled={game.players.length < 1}
-            >
-                {game.players.length < 2 ? "Waiting for more players…" : "🚀 Start Game"}
-            </button>
+            {isHost ? (
+                <button
+                    className="wl-btn"
+                    onClick={() => send({ type: "start_game" })}
+                    disabled={game.players.length < 1}
+                >
+                    🚀 Start Game (Host)
+                </button>
+            ) : (
+                <div style={{
+                    textAlign: "center", padding: "0.875rem", borderRadius: "12px",
+                    background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                    color: "var(--text-muted)", fontSize: "0.875rem",
+                }}>
+                    ⏳ Waiting for Host (👑 {game.players.find(p => p.id === game.hostId)?.username ?? "Host"}) to start game…
+                </div>
+            )}
 
             <p style={{ marginTop: "1rem", textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)" }}>
                 Share code <strong style={{ color: "var(--text-primary)", letterSpacing: "0.08em" }}>{roomCode}</strong> with friends

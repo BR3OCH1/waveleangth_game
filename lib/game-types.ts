@@ -19,6 +19,7 @@ export interface Concept {
 export interface GameState {
     phase: Phase;
     players: Player[];
+    hostId: string | null;        // connection id of the room admin/host
     clueGiverId: string | null;   // connection id of the clue giver
     targetValue: number;          // 0–100, only visible to clue giver during writing_clue
     concept: Concept | null;
@@ -30,12 +31,17 @@ export interface GameState {
 // ─── Message types ────────────────────────────────────────────────────────────
 
 // Server → Client
+export interface InitMessage {
+    type: "init";
+    id: string;
+}
+
 export interface GameStateMessage {
     type: "game_state";
     state: GameState;
 }
 
-export type ServerMessage = GameStateMessage;
+export type ServerMessage = InitMessage | GameStateMessage;
 
 // Client → Server
 export interface JoinMsg { type: "join"; username: string }
@@ -44,6 +50,7 @@ export interface SubmitClueMsg { type: "submit_clue"; clue: string }
 export interface UpdateDialMsg { type: "update_dial"; value: number }
 export interface LockInMsg { type: "lock_in" }
 export interface PlayAgainMsg { type: "play_again" }
+export interface ResetGameMsg { type: "reset_game" }
 
 export type ClientMessage =
     | JoinMsg
@@ -51,4 +58,5 @@ export type ClientMessage =
     | SubmitClueMsg
     | UpdateDialMsg
     | LockInMsg
-    | PlayAgainMsg;
+    | PlayAgainMsg
+    | ResetGameMsg;

@@ -39,7 +39,7 @@ function calcScore(dial: number, target: number): number {
     return Math.max(0, Math.round(100 - Math.abs(dial - target) * 2));
 }
 function defaultState(): GameState {
-    return { phase: "lobby", players: [], clueGiverId: null, targetValue: 50, concept: null, clue: "", dialValue: 50, score: null };
+    return { phase: "lobby", players: [], hostId: null, clueGiverId: null, targetValue: 50, concept: null, clue: "", dialValue: 50, score: null };
 }
 
 // ─── Env bindings ─────────────────────────────────────────────────────────────
@@ -93,7 +93,8 @@ export class WavelengthRoom implements DurableObject {
         this.ctx.acceptWebSocket(server);
         (server as any).serializeAttachment(connId);
 
-        // Send current state immediately on connect
+        // Send init message (with this socket's server-assigned ID) + current game state
+        server.send(JSON.stringify({ type: "init", id: connId }));
         server.send(this.snapshot());
 
         return new Response(null, { status: 101, webSocket: client });
@@ -113,14 +114,24 @@ export class WavelengthRoom implements DurableObject {
         const connId = (ws as any).deserializeAttachment() as string | null;
         if (!connId) return;
         this.state.players = this.state.players.filter(p => p.id !== connId);
+        this.updateHostId();
         if (this.state.clueGiverId === connId && this.state.phase !== "revealed") {
-            this.state = { ...defaultState(), players: this.state.players };
+            this.state = { ...defaultState(), players: this.state.players, hostId: this.state.hostId };
         }
         this.broadcast(this.snapshot());
     }
 
     webSocketError(ws: WebSocket): void {
         this.webSocketClose(ws);
+    }
+
+    private updateHostId(): void {
+        if (this.state.players.length > 0) {
+            // First connected player is the host/admin
+            this.state.hostId = this.state.players[0].id;
+        } else {
+            this.state.hostId = null;
+        }
     }
 
     // ── Game command handlers ───────────────────────────────────────────────────
@@ -131,13 +142,24 @@ export class WavelengthRoom implements DurableObject {
                 const player: Player = { id: connId, username: msg.username };
                 if (existing >= 0) { this.state.players[existing] = player; }
                 else { this.state.players.push(player); }
-                // Send back confirmation of ID to client if needed
+                this.updateHostId();
                 break;
             }
             case "start_game": {
                 if (this.state.players.length < 1) return;
+                // Only host can start game
+                if (connId !== this.state.hostId) return;
                 const clueGiver = pick(this.state.players);
-                this.state = { ...this.state, phase: "writing_clue", clueGiverId: clueGiver.id, targetValue: randomInt(5, 95), concept: pick(CONCEPTS), clue: "", dialValue: 50, score: null };
+                this.state = {
+                    ...this.state,
+                    phase: "writing_clue",
+                    clueGiverId: clueGiver.id,
+                    targetValue: randomInt(5, 95),
+                    concept: pick(CONCEPTS),
+                    clue: "",
+                    dialValue: 50,
+                    score: null,
+                };
                 break;
             }
             case "submit_clue": {
@@ -159,7 +181,13 @@ export class WavelengthRoom implements DurableObject {
             }
             case "play_again": {
                 if (this.state.phase !== "revealed") return;
-                this.state = { ...defaultState(), players: this.state.players };
+                this.state = { ...defaultState(), players: this.state.players, hostId: this.state.hostId };
+                break;
+            }
+            case "reset_game": {
+                // Host can reset at any time
+                if (connId !== this.state.hostId) return;
+                this.state = { ...defaultState(), players: this.state.players, hostId: this.state.hostId };
                 break;
             }
         }

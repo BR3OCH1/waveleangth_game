@@ -42,6 +42,7 @@ function defaultState(): GameState {
   return {
     phase: "lobby",
     players: [],
+    hostId: null,
     clueGiverId: null,
     targetValue: 50,
     concept: null,
