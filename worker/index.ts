@@ -39,7 +39,20 @@ function calcScore(dial: number, target: number): number {
     return Math.max(0, Math.round(100 - Math.abs(dial - target) * 2));
 }
 function defaultState(): GameState {
-    return { phase: "lobby", players: [], hostId: null, clueGiverId: null, targetValue: 50, concept: null, clue: "", dialValue: 50, score: null };
+    return {
+        phase: "lobby",
+        players: [],
+        hostId: null,
+        clueGiverId: null,
+        activeTeam: null,
+        teamScores: { cyan: 0, pink: 0 },
+        clueGiverHistory: [],
+        targetValue: 50,
+        concept: null,
+        clue: "",
+        dialValue: 50,
+        scoreThisRound: null
+    };
 }
 
 // ─── Env bindings ─────────────────────────────────────────────────────────────
@@ -156,26 +169,47 @@ export class WavelengthRoom implements DurableObject {
         switch (msg.type) {
             case "join": {
                 const existing = this.state.players.findIndex(p => p.id === connId);
-                const player: Player = { id: connId, username: msg.username };
-                if (existing >= 0) { this.state.players[existing] = player; }
+                const player: Player = { id: connId, username: msg.username, team: null }; // default unassigned
+                if (existing >= 0) {
+                    // Preserve existing team if they are already in the array
+                    player.team = this.state.players[existing].team;
+                    this.state.players[existing] = player;
+                }
                 else { this.state.players.push(player); }
                 this.updateHostId();
                 break;
             }
+            case "toggle_team": {
+                if (this.state.phase !== "lobby") return;
+                const existing = this.state.players.find(p => p.id === connId);
+                if (existing) {
+                    existing.team = msg.team;
+                }
+                break;
+            }
             case "start_game": {
-                if (this.state.players.length < 2) return; // Need at least 2 players
+                const cyanPlayers = this.state.players.filter(p => p.team === "cyan");
+                const pinkPlayers = this.state.players.filter(p => p.team === "pink");
+                if (cyanPlayers.length < 1 || pinkPlayers.length < 1) return; // Need at least 1 player per team
                 // Only host can start game
                 if (connId !== this.state.hostId) return;
-                const clueGiver = pick(this.state.players);
+
+                const startTeam = Math.random() < 0.5 ? "cyan" : "pink";
+                const activePlayers = startTeam === "cyan" ? cyanPlayers : pinkPlayers;
+                const clueGiver = pick(activePlayers);
+
                 this.state = {
                     ...this.state,
                     phase: "writing_clue",
+                    activeTeam: startTeam,
                     clueGiverId: clueGiver.id,
+                    clueGiverHistory: [clueGiver.id],
+                    teamScores: { cyan: 0, pink: 0 },
                     targetValue: randomInt(5, 95),
                     concept: pick(CONCEPTS),
                     clue: "",
                     dialValue: 50,
-                    score: null,
+                    scoreThisRound: null,
                 };
                 break;
             }
@@ -192,14 +226,56 @@ export class WavelengthRoom implements DurableObject {
             }
             case "lock_in": {
                 if (this.state.phase !== "guessing" || connId === this.state.clueGiverId) return;
-                this.state.score = calcScore(this.state.dialValue, this.state.targetValue);
+                // Verify the person locking in is on the active team
+                const lockingPlayer = this.state.players.find(p => p.id === connId);
+                if (lockingPlayer?.team !== this.state.activeTeam) return;
+
+                const score = calcScore(this.state.dialValue, this.state.targetValue);
+                this.state.scoreThisRound = score;
                 this.state.phase = "revealed";
+
+                if (this.state.activeTeam === "cyan") {
+                    this.state.teamScores.cyan += score;
+                } else if (this.state.activeTeam === "pink") {
+                    this.state.teamScores.pink += score;
+                }
                 break;
             }
             case "play_again": {
                 if (this.state.phase !== "revealed") return;
                 if (connId !== this.state.hostId) return; // Host-only
-                this.state = { ...defaultState(), players: this.state.players, hostId: this.state.hostId };
+
+                // Swap active team
+                const nextTeam = this.state.activeTeam === "cyan" ? "pink" : "cyan";
+                const activePlayers = this.state.players.filter(p => p.team === nextTeam);
+
+                // Round-robin clue giver selection
+                let availableGivers = activePlayers.filter(p => !this.state.clueGiverHistory.includes(p.id));
+                if (availableGivers.length === 0) {
+                    // Everyone on the team has gone, clear their history by just finding who isn't them
+                    // Actually, simpler to just clear everyone from nextTeam in history
+                    const otherTeamHistory = this.state.clueGiverHistory.filter(id => {
+                        const p = this.state.players.find(x => x.id === id);
+                        return p?.team !== nextTeam;
+                    });
+                    this.state.clueGiverHistory = otherTeamHistory;
+                    availableGivers = activePlayers;
+                }
+
+                const nextGiver = pick(availableGivers);
+                this.state.clueGiverHistory.push(nextGiver.id);
+
+                this.state = {
+                    ...this.state,
+                    phase: "writing_clue",
+                    activeTeam: nextTeam,
+                    clueGiverId: nextGiver.id,
+                    targetValue: randomInt(5, 95),
+                    concept: pick(CONCEPTS),
+                    clue: "",
+                    dialValue: 50,
+                    scoreThisRound: null,
+                };
                 break;
             }
             case "reset_game": {

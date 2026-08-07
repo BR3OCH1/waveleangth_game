@@ -44,11 +44,14 @@ const DEFAULT_STATE: GameState = {
     players: [],
     hostId: null,
     clueGiverId: null,
+    activeTeam: null,
+    teamScores: { cyan: 0, pink: 0 },
+    clueGiverHistory: [],
     targetValue: 50,
     concept: null,
     clue: "",
     dialValue: 50,
-    score: null,
+    scoreThisRound: null,
 };
 
 // ─── Extracted Components ─────────────────────────────────────────────────────
@@ -107,23 +110,82 @@ function StatusBar({
     );
 }
 
-function PlayerList({ players, hostId, clueGiverId, myId }: { players: Player[], hostId: string | null, clueGiverId: string | null, myId: string }) {
+function Scoreboard({ activeTeam, scores }: { activeTeam: "cyan" | "pink" | null, scores: { cyan: number, pink: number } }) {
+    if (!activeTeam) return null;
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {players.map(p => (
-                <div key={p.id} className="player-badge">
-                    <span className="avatar" style={{ background: getAvatarColor(p.id), color: "#fff" }}>
-                        {p.username[0]?.toUpperCase() ?? "?"}
-                    </span>
-                    <span style={{ fontWeight: 500, fontSize: "0.95rem", flex: 1 }}>
-                        {p.username}
-                        {p.id === hostId && " 👑"}
-                    </span>
-                    {p.id === hostId && <span className="tag-host">Host</span>}
-                    {p.id === clueGiverId && <span className="tag-cluegiver">Clue Giver</span>}
-                    {p.id === myId && <span className="tag-you">You</span>}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", padding: "0.5rem 1rem", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--accent-cyan)", fontWeight: 800 }}>
+                {activeTeam === "cyan" && <span style={{ fontSize: "1.2rem" }}>▶</span>}
+                Team Cyan: {scores.cyan}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
+                Score
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--accent-pink)", fontWeight: 800 }}>
+                Team Pink: {scores.pink}
+                {activeTeam === "pink" && <span style={{ fontSize: "1.2rem" }}>◀</span>}
+            </div>
+        </div>
+    );
+}
+
+function PlayerList({
+    players, hostId, clueGiverId, myId, onToggleTeam
+}: {
+    players: Player[], hostId: string | null, clueGiverId: string | null, myId: string, onToggleTeam?: (team: "cyan" | "pink") => void
+}) {
+    const unassigned = players.filter(p => !p.team);
+    const cyan = players.filter(p => p.team === "cyan");
+    const pink = players.filter(p => p.team === "pink");
+
+    const renderPlayer = (p: Player) => (
+        <div key={p.id} className="player-badge" style={{ padding: "0.4rem 0.75rem", gap: "0.5rem" }}>
+            <span style={{ fontWeight: 600, fontSize: "0.85rem", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {p.username} {p.id === hostId && "👑"}
+            </span>
+            <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0 }}>
+                {p.id === clueGiverId && <span className="tag-cluegiver" style={{ fontSize: "0.6rem" }}>Giver</span>}
+                {p.id === myId && <span className="tag-you" style={{ fontSize: "0.6rem" }}>You</span>}
+            </div>
+        </div>
+    );
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {unassigned.length > 0 && (
+                <div style={{ background: "rgba(255,255,255,0.02)", padding: "0.75rem", borderRadius: "8px" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 700 }}>Unassigned</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                        {unassigned.map(renderPlayer)}
+                    </div>
                 </div>
-            ))}
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div style={{ background: "rgba(34, 211, 238, 0.05)", border: "1px solid rgba(34, 211, 238, 0.2)", borderRadius: "8px", padding: "0.75rem" }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--accent-cyan)", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 800, textAlign: "center" }}>Team Cyan</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minHeight: "2rem" }}>
+                        {cyan.map(renderPlayer)}
+                    </div>
+                    {onToggleTeam && (
+                        <button onClick={() => onToggleTeam("cyan")} style={{ marginTop: "0.75rem", width: "100%", padding: "0.4rem", background: "rgba(34,211,238,0.15)", border: "1px solid var(--accent-cyan)", color: "var(--accent-cyan)", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 700 }}>
+                            Join Cyan
+                        </button>
+                    )}
+                </div>
+
+                <div style={{ background: "rgba(236, 72, 153, 0.05)", border: "1px solid rgba(236, 72, 153, 0.2)", borderRadius: "8px", padding: "0.75rem" }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--accent-pink)", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 800, textAlign: "center" }}>Team Pink</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minHeight: "2rem" }}>
+                        {pink.map(renderPlayer)}
+                    </div>
+                    {onToggleTeam && (
+                        <button onClick={() => onToggleTeam("pink")} style={{ marginTop: "0.75rem", width: "100%", padding: "0.4rem", background: "rgba(236,72,153,0.15)", border: "1px solid var(--accent-pink)", color: "var(--accent-pink)", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 700 }}>
+                            Join Pink
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
@@ -195,6 +257,8 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
 
     const isClueGiver = !!myId && myId === game.clueGiverId;
     const isHost = !!myId && myId === game.hostId;
+    const myPlayer = game.players.find(p => p.id === myId);
+    const isMyTeamTurn = myPlayer?.team === game.activeTeam;
 
     const rafRef = useRef<number | null>(null);
     const handleDialChange = useCallback((val: number) => {
@@ -224,7 +288,13 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                             <p style={{ fontSize: "0.9rem" }}>Waiting for players to join…</p>
                         </div>
                     ) : (
-                        <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} />
+                        <PlayerList
+                            players={game.players}
+                            hostId={game.hostId}
+                            clueGiverId={game.clueGiverId}
+                            myId={myId}
+                            onToggleTeam={(team) => send({ type: "toggle_team", team })}
+                        />
                     )}
                 </div>
 
@@ -254,6 +324,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
                 <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
+                <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />
                 <ConceptBadge concept={game.concept} />
 
                 {isClueGiver ? (
@@ -335,6 +406,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
                 <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
+                <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />
                 <ConceptBadge concept={game.concept} />
 
                 <div className="glass-card dual-border" style={{ padding: "1.5rem", marginBottom: "1.25rem" }}>
@@ -347,14 +419,14 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
 
                     <Dial
                         value={isClueGiver ? game.dialValue : localDial}
-                        onChange={isClueGiver ? undefined : handleDialChange}
-                        readOnly={isClueGiver}
+                        onChange={isClueGiver || !isMyTeamTurn ? undefined : handleDialChange}
+                        readOnly={isClueGiver || !isMyTeamTurn}
                         leftLabel={game.concept?.left}
                         rightLabel={game.concept?.right}
                         targetValue={isClueGiver ? game.targetValue : undefined}
                     />
 
-                    {!isClueGiver && (
+                    {!isClueGiver && isMyTeamTurn && (
                         <button
                             className="wl-btn dual-btn"
                             onClick={() => send({ type: "lock_in" })}
@@ -368,6 +440,11 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                             Watching the guessers move the needle…
                         </p>
                     )}
+                    {!isClueGiver && !isMyTeamTurn && (
+                        <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic", marginTop: "1rem" }}>
+                            Waiting for Team {game.activeTeam === "cyan" ? "Cyan" : "Pink"} to guess…
+                        </p>
+                    )}
                 </div>
 
                 <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} />
@@ -377,13 +454,14 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
 
     // ─── PHASE: REVEALED ──────────────────────────────────────────────────────
     if (game.phase === "revealed") {
-        const score = game.score ?? 0;
+        const score = game.scoreThisRound ?? 0;
         const tier = scoreTier(score);
         const color = scoreTierColor(score);
 
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
                 <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
+                <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />
                 <ConceptBadge concept={game.concept} />
 
                 <div className="glass-card dual-border" style={{ padding: "2rem 1.5rem", marginBottom: "1.25rem", textAlign: "center" }}>

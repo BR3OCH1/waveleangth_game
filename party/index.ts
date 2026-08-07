@@ -42,11 +42,14 @@ function defaultState(): GameState {
     players: [],
     hostId: null,
     clueGiverId: null,
+    activeTeam: null,
+    teamScores: { cyan: 0, pink: 0 },
+    clueGiverHistory: [],
     targetValue: 50,
     concept: null,
     clue: "",
     dialValue: 50,
-    score: null,
+    scoreThisRound: null,
   };
 }
 
@@ -75,6 +78,9 @@ export default class WavelengthParty implements Party.Server {
     switch (msg.type) {
       case "join":
         this.handleJoin(sender.id, msg.username);
+        break;
+      case "toggle_team":
+        this.handleToggleTeam(sender.id, msg.team);
         break;
       case "start_game":
         this.handleStartGame(sender.id);
@@ -134,8 +140,9 @@ export default class WavelengthParty implements Party.Server {
   // ── Handlers ─────────────────────────────────────────────────────────────────
   private handleJoin(id: string, username: string) {
     const existing = this.state.players.findIndex((p) => p.id === id);
-    const player: Player = { id, username };
+    const player: Player = { id, username, team: null }; // default unassigned
     if (existing >= 0) {
+      player.team = this.state.players[existing].team;
       this.state.players[existing] = player;
     } else {
       this.state.players.push(player);
@@ -144,19 +151,37 @@ export default class WavelengthParty implements Party.Server {
     this.broadcastState();
   }
 
+  private handleToggleTeam(id: string, team: "cyan" | "pink") {
+    if (this.state.phase !== "lobby") return;
+    const existing = this.state.players.find(p => p.id === id);
+    if (existing) {
+      existing.team = team;
+      this.broadcastState();
+    }
+  }
+
   private handleStartGame(senderId: string) {
-    if (this.state.players.length < 2) return;
+    const cyanPlayers = this.state.players.filter(p => p.team === "cyan");
+    const pinkPlayers = this.state.players.filter(p => p.team === "pink");
+    if (cyanPlayers.length < 1 || pinkPlayers.length < 1) return;
     if (senderId !== this.state.hostId) return; // Host-only
-    const clueGiver = pick(this.state.players);
+
+    const startTeam = Math.random() < 0.5 ? "cyan" : "pink";
+    const activePlayers = startTeam === "cyan" ? cyanPlayers : pinkPlayers;
+    const clueGiver = pick(activePlayers);
+
     this.state = {
       ...this.state,
       phase: "writing_clue",
+      activeTeam: startTeam,
       clueGiverId: clueGiver.id,
-      targetValue: randomInt(5, 95),
+      clueGiverHistory: [clueGiver.id],
+      teamScores: { cyan: 0, pink: 0 },
+      targetValue: randomInt(5, 95), // avoid extreme edges
       concept: pick(CONCEPTS),
       clue: "",
       dialValue: 50,
-      score: null,
+      scoreThisRound: null,
     };
     this.broadcastState();
   }
@@ -188,18 +213,51 @@ export default class WavelengthParty implements Party.Server {
       senderId === this.state.clueGiverId
     )
       return;
-    this.state.score = calcScore(this.state.dialValue, this.state.targetValue);
+    const lockingPlayer = this.state.players.find(p => p.id === senderId);
+    if (lockingPlayer?.team !== this.state.activeTeam) return;
+
+    const score = calcScore(this.state.dialValue, this.state.targetValue);
+    this.state.scoreThisRound = score;
     this.state.phase = "revealed";
+
+    if (this.state.activeTeam === "cyan") {
+      this.state.teamScores.cyan += score;
+    } else if (this.state.activeTeam === "pink") {
+      this.state.teamScores.pink += score;
+    }
     this.broadcastState();
   }
 
   private handlePlayAgain(senderId: string) {
     if (this.state.phase !== "revealed") return;
     if (senderId !== this.state.hostId) return; // Host-only
+
+    const nextTeam = this.state.activeTeam === "cyan" ? "pink" : "cyan";
+    const activePlayers = this.state.players.filter(p => p.team === nextTeam);
+
+    let availableGivers = activePlayers.filter(p => !this.state.clueGiverHistory.includes(p.id));
+    if (availableGivers.length === 0) {
+      const otherTeamHistory = this.state.clueGiverHistory.filter(id => {
+        const p = this.state.players.find(x => x.id === id);
+        return p?.team !== nextTeam;
+      });
+      this.state.clueGiverHistory = otherTeamHistory;
+      availableGivers = activePlayers;
+    }
+
+    const nextGiver = pick(availableGivers);
+    this.state.clueGiverHistory.push(nextGiver.id);
+
     this.state = {
-      ...defaultState(),
-      players: this.state.players,
-      hostId: this.state.hostId,
+      ...this.state,
+      phase: "writing_clue",
+      activeTeam: nextTeam,
+      clueGiverId: nextGiver.id,
+      targetValue: randomInt(5, 95),
+      concept: pick(CONCEPTS),
+      clue: "",
+      dialValue: 50,
+      scoreThisRound: null,
     };
     this.broadcastState();
   }
