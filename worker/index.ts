@@ -9,7 +9,7 @@
  * adapter changes (Cloudflare DO API instead of PartyKit API).
  */
 
-import type { GameState, Player, ClientMessage, Concept } from "../lib/game-types";
+import { ClientMessage, Concept, GameState, Player, ServerMessage, Team, GameMode } from "../lib/game-types";
 
 // ─── Concept bank ─────────────────────────────────────────────────────────────
 const CONCEPTS: Concept[] = [
@@ -40,12 +40,14 @@ function calcScore(dial: number, target: number): number {
 }
 function defaultState(): GameState {
     return {
+        gameMode: "coop",
         phase: "lobby",
         players: [],
         hostId: null,
         clueGiverId: null,
         activeTeam: null,
         teamScores: { cyan: 0, pink: 0 },
+        coopScore: 0,
         clueGiverHistory: [],
         targetValue: 50,
         concept: null,
@@ -187,15 +189,29 @@ export class WavelengthRoom implements DurableObject {
                 }
                 break;
             }
+            case "toggle_mode": {
+                if (this.state.phase !== "lobby") return;
+                if (connId !== this.state.hostId) return;
+                this.state.gameMode = msg.mode;
+                break;
+            }
             case "start_game": {
-                const cyanPlayers = this.state.players.filter(p => p.team === "cyan");
-                const pinkPlayers = this.state.players.filter(p => p.team === "pink");
-                if (cyanPlayers.length < 1 || pinkPlayers.length < 1) return; // Need at least 1 player per team
-                // Only host can start game
                 if (connId !== this.state.hostId) return;
 
-                const startTeam = Math.random() < 0.5 ? "cyan" : "pink";
-                const activePlayers = startTeam === "cyan" ? cyanPlayers : pinkPlayers;
+                let startTeam: Team | null = null;
+                let activePlayers = this.state.players;
+
+                if (this.state.gameMode === "teams") {
+                    const cyanPlayers = this.state.players.filter(p => p.team === "cyan");
+                    const pinkPlayers = this.state.players.filter(p => p.team === "pink");
+                    if (cyanPlayers.length < 1 || pinkPlayers.length < 1) return; // Need at least 1 player per team
+
+                    startTeam = Math.random() < 0.5 ? "cyan" : "pink";
+                    activePlayers = startTeam === "cyan" ? cyanPlayers : pinkPlayers;
+                } else {
+                    if (this.state.players.length < 2) return; // Need 2+ for coop
+                }
+
                 const clueGiver = pick(activePlayers);
 
                 this.state = {
@@ -205,6 +221,7 @@ export class WavelengthRoom implements DurableObject {
                     clueGiverId: clueGiver.id,
                     clueGiverHistory: [clueGiver.id],
                     teamScores: { cyan: 0, pink: 0 },
+                    coopScore: 0,
                     targetValue: randomInt(5, 95),
                     concept: pick(CONCEPTS),
                     clue: "",
@@ -226,18 +243,21 @@ export class WavelengthRoom implements DurableObject {
             }
             case "lock_in": {
                 if (this.state.phase !== "guessing" || connId === this.state.clueGiverId) return;
-                // Verify the person locking in is on the active team
-                const lockingPlayer = this.state.players.find(p => p.id === connId);
-                if (lockingPlayer?.team !== this.state.activeTeam) return;
+
+                if (this.state.gameMode === "teams") {
+                    const lockingPlayer = this.state.players.find(p => p.id === connId);
+                    if (lockingPlayer?.team !== this.state.activeTeam) return;
+                }
 
                 const score = calcScore(this.state.dialValue, this.state.targetValue);
                 this.state.scoreThisRound = score;
                 this.state.phase = "revealed";
 
-                if (this.state.activeTeam === "cyan") {
-                    this.state.teamScores.cyan += score;
-                } else if (this.state.activeTeam === "pink") {
-                    this.state.teamScores.pink += score;
+                if (this.state.gameMode === "teams") {
+                    if (this.state.activeTeam === "cyan") this.state.teamScores.cyan += score;
+                    if (this.state.activeTeam === "pink") this.state.teamScores.pink += score;
+                } else {
+                    this.state.coopScore += score;
                 }
                 break;
             }
@@ -245,20 +265,26 @@ export class WavelengthRoom implements DurableObject {
                 if (this.state.phase !== "revealed") return;
                 if (connId !== this.state.hostId) return; // Host-only
 
-                // Swap active team
-                const nextTeam = this.state.activeTeam === "cyan" ? "pink" : "cyan";
-                const activePlayers = this.state.players.filter(p => p.team === nextTeam);
+                let nextTeam = this.state.activeTeam;
+                let activePlayers = this.state.players;
+
+                if (this.state.gameMode === "teams") {
+                    nextTeam = this.state.activeTeam === "cyan" ? "pink" : "cyan";
+                    activePlayers = this.state.players.filter(p => p.team === nextTeam);
+                }
 
                 // Round-robin clue giver selection
                 let availableGivers = activePlayers.filter(p => !this.state.clueGiverHistory.includes(p.id));
                 if (availableGivers.length === 0) {
-                    // Everyone on the team has gone, clear their history by just finding who isn't them
-                    // Actually, simpler to just clear everyone from nextTeam in history
-                    const otherTeamHistory = this.state.clueGiverHistory.filter(id => {
-                        const p = this.state.players.find(x => x.id === id);
-                        return p?.team !== nextTeam;
-                    });
-                    this.state.clueGiverHistory = otherTeamHistory;
+                    if (this.state.gameMode === "teams") {
+                        const otherTeamHistory = this.state.clueGiverHistory.filter(id => {
+                            const p = this.state.players.find(x => x.id === id);
+                            return p?.team !== nextTeam;
+                        });
+                        this.state.clueGiverHistory = otherTeamHistory;
+                    } else {
+                        this.state.clueGiverHistory = [];
+                    }
                     availableGivers = activePlayers;
                 }
 

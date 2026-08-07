@@ -40,12 +40,14 @@ const STATUS_LABELS: Record<ConnectionStatus, string> = {
 };
 
 const DEFAULT_STATE: GameState = {
+    gameMode: "coop",
     phase: "lobby",
     players: [],
     hostId: null,
     clueGiverId: null,
     activeTeam: null,
     teamScores: { cyan: 0, pink: 0 },
+    coopScore: 0,
     clueGiverHistory: [],
     targetValue: 50,
     concept: null,
@@ -110,6 +112,17 @@ function StatusBar({
     );
 }
 
+function GlobalScoreboard({ score }: { score: number }) {
+    return (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "1.5rem", padding: "0.5rem 1rem", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Co-op Score</span>
+                <span style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--text-primary)" }}>{score}</span>
+            </div>
+        </div>
+    );
+}
+
 function Scoreboard({ activeTeam, scores }: { activeTeam: "cyan" | "pink" | null, scores: { cyan: number, pink: number } }) {
     if (!activeTeam) return null;
     return (
@@ -130,14 +143,10 @@ function Scoreboard({ activeTeam, scores }: { activeTeam: "cyan" | "pink" | null
 }
 
 function PlayerList({
-    players, hostId, clueGiverId, myId, onToggleTeam
+    players, hostId, clueGiverId, myId, onToggleTeam, gameMode
 }: {
-    players: Player[], hostId: string | null, clueGiverId: string | null, myId: string, onToggleTeam?: (team: "cyan" | "pink") => void
+    players: Player[], hostId: string | null, clueGiverId: string | null, myId: string, onToggleTeam?: (team: "cyan" | "pink") => void, gameMode: "coop" | "teams"
 }) {
-    const unassigned = players.filter(p => !p.team);
-    const cyan = players.filter(p => p.team === "cyan");
-    const pink = players.filter(p => p.team === "pink");
-
     const renderPlayer = (p: Player) => (
         <div key={p.id} className="player-badge" style={{ padding: "0.4rem 0.75rem", gap: "0.5rem" }}>
             <span style={{ fontWeight: 600, fontSize: "0.85rem", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -149,6 +158,18 @@ function PlayerList({
             </div>
         </div>
     );
+
+    if (gameMode === "coop") {
+        return (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {players.map(renderPlayer)}
+            </div>
+        );
+    }
+
+    const unassigned = players.filter(p => !p.team);
+    const cyan = players.filter(p => p.team === "cyan");
+    const pink = players.filter(p => p.team === "pink");
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -282,6 +303,25 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                         <h2 style={{ fontWeight: 700, fontSize: "1rem" }}>Players in Lobby</h2>
                         <span className="player-count-badge">{game.players.length} / 8</span>
                     </div>
+
+                    <div style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.03)", padding: "0.75rem", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>Game Mode</div>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <button
+                                onClick={() => isHost && send({ type: "toggle_mode", mode: "coop" })}
+                                style={{ padding: "0.4rem 0.75rem", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: isHost ? "pointer" : "default", background: game.gameMode === "coop" ? "rgba(255,255,255,0.15)" : "transparent", color: game.gameMode === "coop" ? "#fff" : "var(--text-muted)", border: "none" }}
+                            >
+                                Co-op
+                            </button>
+                            <button
+                                onClick={() => isHost && send({ type: "toggle_mode", mode: "teams" })}
+                                style={{ padding: "0.4rem 0.75rem", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: isHost ? "pointer" : "default", background: game.gameMode === "teams" ? "rgba(255,255,255,0.15)" : "transparent", color: game.gameMode === "teams" ? "#fff" : "var(--text-muted)", border: "none" }}
+                            >
+                                Teams
+                            </button>
+                        </div>
+                    </div>
+
                     {game.players.length === 0 ? (
                         <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)" }}>
                             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🎙️</div>
@@ -294,6 +334,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                             clueGiverId={game.clueGiverId}
                             myId={myId}
                             onToggleTeam={(team) => send({ type: "toggle_team", team })}
+                            gameMode={game.gameMode}
                         />
                     )}
                 </div>
@@ -324,7 +365,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
                 <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
-                <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />
+                {game.gameMode === "coop" ? <GlobalScoreboard score={game.coopScore} /> : <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />}
                 <ConceptBadge concept={game.concept} />
 
                 {isClueGiver ? (
@@ -395,7 +436,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                 )}
 
                 <div style={{ marginTop: "1.25rem" }}>
-                    <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} />
+                    <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} gameMode={game.gameMode} />
                 </div>
             </div>
         );
@@ -403,10 +444,12 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
 
     // ─── PHASE: GUESSING ──────────────────────────────────────────────────────
     if (game.phase === "guessing") {
+        const canGuess = game.gameMode === "coop" ? !isClueGiver : (!isClueGiver && isMyTeamTurn);
+
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
                 <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
-                <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />
+                {game.gameMode === "coop" ? <GlobalScoreboard score={game.coopScore} /> : <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />}
                 <ConceptBadge concept={game.concept} />
 
                 <div className="glass-card dual-border" style={{ padding: "1.5rem", marginBottom: "1.25rem" }}>
@@ -419,14 +462,14 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
 
                     <Dial
                         value={isClueGiver ? game.dialValue : localDial}
-                        onChange={isClueGiver || !isMyTeamTurn ? undefined : handleDialChange}
-                        readOnly={isClueGiver || !isMyTeamTurn}
+                        onChange={canGuess ? handleDialChange : undefined}
+                        readOnly={!canGuess}
                         leftLabel={game.concept?.left}
                         rightLabel={game.concept?.right}
                         targetValue={isClueGiver ? game.targetValue : undefined}
                     />
 
-                    {!isClueGiver && isMyTeamTurn && (
+                    {canGuess && (
                         <button
                             className="wl-btn dual-btn"
                             onClick={() => send({ type: "lock_in" })}
@@ -440,14 +483,14 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                             Watching the guessers move the needle…
                         </p>
                     )}
-                    {!isClueGiver && !isMyTeamTurn && (
+                    {!isClueGiver && game.gameMode === "teams" && !isMyTeamTurn && (
                         <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic", marginTop: "1rem" }}>
                             Waiting for Team {game.activeTeam === "cyan" ? "Cyan" : "Pink"} to guess…
                         </p>
                     )}
                 </div>
 
-                <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} />
+                <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} gameMode={game.gameMode} />
             </div>
         );
     }
@@ -461,7 +504,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
                 <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
-                <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />
+                {game.gameMode === "coop" ? <GlobalScoreboard score={game.coopScore} /> : <Scoreboard activeTeam={game.activeTeam} scores={game.teamScores} />}
                 <ConceptBadge concept={game.concept} />
 
                 <div className="glass-card dual-border" style={{ padding: "2rem 1.5rem", marginBottom: "1.25rem", textAlign: "center" }}>
@@ -497,7 +540,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
                 )}
 
                 <div style={{ marginTop: "1.25rem" }}>
-                    <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} />
+                    <PlayerList players={game.players} hostId={game.hostId} clueGiverId={game.clueGiverId} myId={myId} gameMode={game.gameMode} />
                 </div>
             </div>
         );

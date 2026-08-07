@@ -6,6 +6,7 @@ export type Phase =
     | "guessing"     // guessers drag the dial; clue giver watches
     | "revealed";    // everyone sees the result + score
 
+export type GameMode = "coop" | "teams";
 export type Team = "cyan" | "pink";
 
 export interface Player {
@@ -20,12 +21,14 @@ export interface Concept {
 }
 
 export interface GameState {
+    gameMode: GameMode;
     phase: Phase;
     players: Player[];
     hostId: string | null;        // connection id of the room admin/host
     clueGiverId: string | null;   // connection id of the clue giver
     activeTeam: Team | null;      // which team is currently guessing
     teamScores: { cyan: number; pink: number };
+    coopScore: number;            // shared score if gameMode === 'coop'
     clueGiverHistory: string[];   // track who has given clues to round-robin
     targetValue: number;          // 0–100, only visible to clue giver during writing_clue
     concept: Concept | null;
@@ -52,6 +55,7 @@ export type ServerMessage = InitMessage | GameStateMessage;
 // Client → Server
 export interface JoinMsg { type: "join"; username: string }
 export interface ToggleTeamMsg { type: "toggle_team"; team: Team }
+export interface ToggleModeMsg { type: "toggle_mode"; mode: GameMode }
 export interface StartGameMsg { type: "start_game" }
 export interface SubmitClueMsg { type: "submit_clue"; clue: string }
 export interface UpdateDialMsg { type: "update_dial"; value: number }
@@ -62,6 +66,7 @@ export interface ResetGameMsg { type: "reset_game" }
 export type ClientMessage =
     | JoinMsg
     | ToggleTeamMsg
+    | ToggleModeMsg
     | StartGameMsg
     | SubmitClueMsg
     | UpdateDialMsg
