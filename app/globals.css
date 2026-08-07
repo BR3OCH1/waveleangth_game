@@ -27,12 +27,11 @@ body {
   background: var(--bg-deep);
   color: var(--text-primary);
   min-height: 100vh;
-  background-image: radial-gradient(ellipse 80% 60% at 50% -10%,
-      rgba(139, 92, 246, 0.18),
-      transparent),
-    radial-gradient(ellipse 50% 40% at 85% 80%,
-      rgba(34, 211, 238, 0.1),
-      transparent);
+  /* Dramatic split background for duality */
+  background-image:
+    radial-gradient(circle at 15% 40%, rgba(34, 211, 238, 0.12) 0%, transparent 55%),
+    radial-gradient(circle at 85% 60%, rgba(236, 72, 153, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 10% at 50% 100%, rgba(139, 92, 246, 0.1), transparent);
 }
 
 /* ── Glassmorphism card ── */
@@ -376,4 +375,111 @@ body {
 .dial-track-wrap {
   position: relative;
   padding-top: 2.5rem;
+}
+
+/* ── Dual Color Overhaul Additions ── */
+
+.dual-border {
+  border: 1px solid transparent;
+  background: linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+    linear-gradient(90deg, rgba(34, 211, 238, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%) border-box;
+}
+
+.dual-btn {
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink));
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+.dual-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+}
+
+.dual-spect-bg {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-cyan) 0%, var(--accent-pink) 100%);
+  z-index: 1;
+}
+
+.dual-concept-badge {
+  position: relative;
+  z-index: 2;
+  background: var(--bg-deep);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1.5rem;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.concept-left {
+  color: var(--accent-cyan);
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+}
+
+.concept-right {
+  color: var(--accent-pink);
+  text-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
+}
+
+.tag-host {
+  font-size: 0.7rem;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.1);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.tag-cluegiver {
+  font-size: 0.7rem;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.tag-you {
+  font-size: 0.7rem;
+  color: var(--accent-cyan);
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.role-super-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.clue-display {
+  font-weight: 800;
+  font-size: 2.25rem;
+  background: linear-gradient(135deg, #fff, #cbd5e1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
+}
+
+.guess-marker {
+  position: absolute;
+  top: -0.6rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  background: var(--accent-violet);
+  border-radius: 50%;
+  border: 2px solid #fff;
+  transform: translateX(-50%);
+  z-index: 3;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
 }
