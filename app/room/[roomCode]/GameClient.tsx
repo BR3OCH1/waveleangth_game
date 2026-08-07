@@ -156,7 +156,16 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
     useEffect(() => {
         const rawHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
         const host = rawHost.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-        const socket = new PartySocket({ host, room: roomCode });
+
+        // Generate a unique ID per tab (sessionStorage), so 2 tabs in the same browser
+        // can join as two distinct players without kicking each other due to shared localStorage ID.
+        let tabId = sessionStorage.getItem("wl_client_id");
+        if (!tabId) {
+            tabId = `client_${Math.random().toString(36).substring(2, 9)}`;
+            sessionStorage.setItem("wl_client_id", tabId);
+        }
+
+        const socket = new PartySocket({ host, room: roomCode, id: tabId });
         socketRef.current = socket;
 
         // "open" fires on initial connect AND on every auto-reconnect
@@ -182,7 +191,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string; u
         );
 
         return () => { socket.close(); };
-    }, [roomCode]); // Intentional: don't re-create socket when username changes, use ref instead
+    }, [roomCode]);
 
     const isClueGiver = !!myId && myId === game.clueGiverId;
     const isHost = !!myId && myId === game.hostId;
