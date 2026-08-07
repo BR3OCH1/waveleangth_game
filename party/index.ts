@@ -33,11 +33,9 @@ function pick<T>(arr: T[]): T {
 }
 
 function calcScore(dial: number, target: number): number {
-  const distance = Math.abs(dial - target);
-  return Math.max(0, Math.round(100 - distance * 2));
+  return Math.max(0, Math.round(100 - Math.abs(dial - target) * 2));
 }
 
-// ─── Default state factory ────────────────────────────────────────────────────
 function defaultState(): GameState {
   return {
     phase: "lobby",
@@ -55,26 +53,31 @@ function defaultState(): GameState {
 // ─── Server ───────────────────────────────────────────────────────────────────
 export default class WavelengthParty implements Party.Server {
   private state: GameState = defaultState();
-  // Map of connectionId → username (so we can restore on reconnect)
-  private connections: Map<string, string> = new Map();
 
   constructor(readonly room: Party.Room) { }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   onConnect(conn: Party.Connection) {
-    // Send the full current state to the newly connected socket
+    // Send init message with server-assigned connection ID
+    conn.send(JSON.stringify({ type: "init", id: conn.id }));
+    // Send full current state
     conn.send(this.snapshot());
   }
 
   onMessage(message: string, sender: Party.Connection) {
-    const msg = JSON.parse(message) as ClientMessage;
+    let msg: ClientMessage;
+    try {
+      msg = JSON.parse(message) as ClientMessage;
+    } catch {
+      return; // ignore malformed messages
+    }
 
     switch (msg.type) {
       case "join":
         this.handleJoin(sender.id, msg.username);
         break;
       case "start_game":
-        this.handleStartGame();
+        this.handleStartGame(sender.id);
         break;
       case "submit_clue":
         this.handleSubmitClue(sender.id, msg.clue);
@@ -86,33 +89,50 @@ export default class WavelengthParty implements Party.Server {
         this.handleLockIn(sender.id);
         break;
       case "play_again":
-        this.handlePlayAgain();
+        this.handlePlayAgain(sender.id);
+        break;
+      case "reset_game":
+        this.handleResetGame(sender.id);
         break;
     }
   }
 
   onClose(conn: Party.Connection) {
-    this.connections.delete(conn.id);
     this.state.players = this.state.players.filter((p) => p.id !== conn.id);
+    this.updateHostId();
     // If the clue giver disconnects mid-round, reset to lobby
     if (
       this.state.clueGiverId === conn.id &&
       this.state.phase !== "revealed"
     ) {
-      this.state = { ...defaultState(), players: this.state.players };
+      this.state = {
+        ...defaultState(),
+        players: this.state.players,
+        hostId: this.state.hostId,
+      };
     }
     this.broadcastState();
   }
 
-  onError(conn: Party.Connection, error: Error) {
-    console.error(`[wavelength] connection ${conn.id} error:`, error);
+  onError(conn: Party.Connection) {
     this.onClose(conn);
+  }
+
+  // ── Host management ──────────────────────────────────────────────────────────
+  private updateHostId(): void {
+    if (this.state.players.length > 0) {
+      // If current host is still connected, keep them. Otherwise, promote first player.
+      const hostStillHere = this.state.players.some(p => p.id === this.state.hostId);
+      if (!hostStillHere) {
+        this.state.hostId = this.state.players[0].id;
+      }
+    } else {
+      this.state.hostId = null;
+    }
   }
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   private handleJoin(id: string, username: string) {
-    this.connections.set(id, username);
-    // Upsert: update username if already in list, else add
     const existing = this.state.players.findIndex((p) => p.id === id);
     const player: Player = { id, username };
     if (existing >= 0) {
@@ -120,17 +140,19 @@ export default class WavelengthParty implements Party.Server {
     } else {
       this.state.players.push(player);
     }
+    this.updateHostId();
     this.broadcastState();
   }
 
-  private handleStartGame() {
-    if (this.state.players.length < 1) return;
+  private handleStartGame(senderId: string) {
+    if (this.state.players.length < 2) return;
+    if (senderId !== this.state.hostId) return; // Host-only
     const clueGiver = pick(this.state.players);
     this.state = {
       ...this.state,
       phase: "writing_clue",
       clueGiverId: clueGiver.id,
-      targetValue: randomInt(5, 95), // avoid extreme edges
+      targetValue: randomInt(5, 95),
       concept: pick(CONCEPTS),
       clue: "",
       dialValue: 50,
@@ -171,9 +193,24 @@ export default class WavelengthParty implements Party.Server {
     this.broadcastState();
   }
 
-  private handlePlayAgain() {
+  private handlePlayAgain(senderId: string) {
     if (this.state.phase !== "revealed") return;
-    this.state = { ...defaultState(), players: this.state.players };
+    if (senderId !== this.state.hostId) return; // Host-only
+    this.state = {
+      ...defaultState(),
+      players: this.state.players,
+      hostId: this.state.hostId,
+    };
+    this.broadcastState();
+  }
+
+  private handleResetGame(senderId: string) {
+    if (senderId !== this.state.hostId) return; // Host-only
+    this.state = {
+      ...defaultState(),
+      players: this.state.players,
+      hostId: this.state.hostId,
+    };
     this.broadcastState();
   }
 

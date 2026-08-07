@@ -88,7 +88,7 @@ export class WavelengthRoom implements DurableObject {
         }
 
         const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
-        const connId = `p_${++this.nextId}_${Math.random().toString(36).substring(2, 7)}`;
+        const connId = `p_${++this.nextId}_${Date.now().toString(36)}`;
 
         this.ctx.acceptWebSocket(server);
         (server as any).serializeAttachment(connId);
@@ -127,8 +127,11 @@ export class WavelengthRoom implements DurableObject {
 
     private updateHostId(): void {
         if (this.state.players.length > 0) {
-            // First connected player is the host/admin
-            this.state.hostId = this.state.players[0].id;
+            // Keep current host if still connected, otherwise promote first player
+            const hostStillHere = this.state.players.some(p => p.id === this.state.hostId);
+            if (!hostStillHere) {
+                this.state.hostId = this.state.players[0].id;
+            }
         } else {
             this.state.hostId = null;
         }
@@ -146,7 +149,7 @@ export class WavelengthRoom implements DurableObject {
                 break;
             }
             case "start_game": {
-                if (this.state.players.length < 1) return;
+                if (this.state.players.length < 2) return; // Need at least 2 players
                 // Only host can start game
                 if (connId !== this.state.hostId) return;
                 const clueGiver = pick(this.state.players);
@@ -181,6 +184,7 @@ export class WavelengthRoom implements DurableObject {
             }
             case "play_again": {
                 if (this.state.phase !== "revealed") return;
+                if (connId !== this.state.hostId) return; // Host-only
                 this.state = { ...defaultState(), players: this.state.players, hostId: this.state.hostId };
                 break;
             }

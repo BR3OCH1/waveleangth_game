@@ -27,7 +27,6 @@ body {
   background: var(--bg-deep);
   color: var(--text-primary);
   min-height: 100vh;
-  /* Dramatic split background for duality */
   background-image:
     radial-gradient(circle at 15% 40%, rgba(34, 211, 238, 0.12) 0%, transparent 55%),
     radial-gradient(circle at 85% 60%, rgba(236, 72, 153, 0.12) 0%, transparent 55%),
@@ -229,53 +228,66 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Dial (range input) ── */
-.wl-dial {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 0.5rem;
-  border-radius: 999px;
-  background: linear-gradient(to right,
-      var(--accent-cyan) 0%,
-      var(--accent-violet) 50%,
-      var(--accent-pink) 100%);
-  outline: none;
-  border: none;
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEMICIRCLE DIAL
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wl-dial-container {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.wl-dial-svg {
+  width: 100%;
+  height: auto;
+  cursor: pointer;
   display: block;
 }
 
-.wl-dial::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: #fff;
-  border: 3px solid var(--accent-violet);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
-  cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.1s;
+.wl-dial-svg line,
+.wl-dial-svg circle {
+  pointer-events: none;
 }
 
-.wl-dial::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 18px rgba(139, 92, 246, 0.9);
-  transform: scale(1.15);
+.wl-dial-value {
+  position: absolute;
+  bottom: 0.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-.wl-dial:disabled::-webkit-slider-thumb {
-  cursor: default;
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: none;
+.wl-dial-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0 0.25rem;
 }
 
-.wl-dial::-moz-range-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: #fff;
-  border: 3px solid var(--accent-violet);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
-  cursor: pointer;
+.wl-dial-label-left {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
+}
+
+.wl-dial-label-right {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-pink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 8px rgba(236, 72, 153, 0.3);
 }
 
 /* ── Concept badge ── */
@@ -297,39 +309,7 @@ body {
   font-weight: 400;
 }
 
-/* ── Target marker on reveal ── */
-.target-marker {
-  position: absolute;
-  top: -1.8rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: #fbbf24;
-  border: 3px solid #fff;
-  box-shadow: 0 0 16px rgba(251, 191, 36, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: #000;
-  transform: translateX(-50%);
-  animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-@keyframes pop-in {
-  from {
-    transform: translateX(-50%) scale(0);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateX(-50%) scale(1);
-    opacity: 1;
-  }
-}
-
-/* ── Score display ── */
+/* ── Score ── */
 @keyframes count-up {
   from {
     transform: scale(0.6);
@@ -349,7 +329,7 @@ body {
   line-height: 1;
 }
 
-/* ── Waiting card pulse ── */
+/* ── Waiting pulse ── */
 @keyframes soft-pulse {
 
   0%,
@@ -371,13 +351,9 @@ body {
   animation: fade-in-up 0.45s ease both;
 }
 
-/* ── Target track wrapper (for reveal marker positioning) ── */
-.dial-track-wrap {
-  position: relative;
-  padding-top: 2.5rem;
-}
-
-/* ── Dual Color Overhaul Additions ── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   DUAL COLOR THEME
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .dual-border {
   border: 1px solid transparent;
@@ -424,6 +400,7 @@ body {
   text-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
 }
 
+/* ── Tags ── */
 .tag-host {
   font-size: 0.7rem;
   color: #a78bfa;
@@ -451,6 +428,7 @@ body {
   padding: 0.1rem 0.5rem;
 }
 
+/* ── Role title ── */
 .role-super-title {
   font-size: 0.75rem;
   font-weight: 700;
@@ -458,28 +436,54 @@ body {
   text-transform: uppercase;
   background: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 0.5rem;
 }
 
+/* ── Clue display ── */
 .clue-display {
   font-weight: 800;
   font-size: 2.25rem;
   background: linear-gradient(135deg, #fff, #cbd5e1);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
 }
 
-.guess-marker {
-  position: absolute;
-  top: -0.6rem;
-  width: 1.2rem;
-  height: 1.2rem;
-  background: var(--accent-violet);
-  border-radius: 50%;
-  border: 2px solid #fff;
-  transform: translateX(-50%);
-  z-index: 3;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+/* ── Utility classes ── */
+.reset-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.reset-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.player-count-badge {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--accent-violet);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.waiting-host-msg {
+  text-align: center;
+  padding: 0.875rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }

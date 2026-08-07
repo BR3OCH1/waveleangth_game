@@ -51,7 +51,7 @@ const DEFAULT_STATE: GameState = {
     score: null,
 };
 
-// ─── Shared Extracted Components (Prevents React Unmount Bug) ─────────────────
+// ─── Extracted Components ─────────────────────────────────────────────────────
 
 function ConceptBadge({ concept }: { concept: Concept | null }) {
     if (!concept) return null;
@@ -94,17 +94,13 @@ function StatusBar({
                 </span>
             </div>
 
-            {phase !== "lobby" && (
+            {phase !== "lobby" && isHost && (
                 <button
                     onClick={onReset}
-                    style={{
-                        background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
-                        color: "#f87171", borderRadius: "999px", padding: "0.35rem 0.75rem",
-                        fontSize: "0.75rem", cursor: "pointer", fontWeight: 600,
-                    }}
+                    className="reset-btn"
                     title="Reset game back to lobby"
                 >
-                    ⚙️ {isHost ? "Reset Room (Host)" : "Reset Room"}
+                    ⚙️ Reset Room
                 </button>
             )}
         </div>
@@ -123,40 +119,35 @@ function PlayerList({ players, hostId, clueGiverId, myId }: { players: Player[],
                         {p.username}
                         {p.id === hostId && " 👑"}
                     </span>
-                    {p.id === hostId && (
-                        <span className="tag-host">Host</span>
-                    )}
-                    {p.id === clueGiverId && (
-                        <span className="tag-cluegiver">Clue Giver</span>
-                    )}
-                    {p.id === myId && (
-                        <span className="tag-you">You</span>
-                    )}
+                    {p.id === hostId && <span className="tag-host">Host</span>}
+                    {p.id === clueGiverId && <span className="tag-cluegiver">Clue Giver</span>}
+                    {p.id === myId && <span className="tag-you">You</span>}
                 </div>
             ))}
         </div>
     );
 }
 
-// ─── Main Game Client Component ───────────────────────────────────────────────
+// ─── Main Game Client ─────────────────────────────────────────────────────────
 
-export default function GameClient({ roomCode, username }: { roomCode: string, username: string }) {
+export default function GameClient({ roomCode, username }: { roomCode: string; username: string }) {
     const [game, setGame] = useState<GameState>(DEFAULT_STATE);
     const [connStatus, setConnStatus] = useState<ConnectionStatus>("connecting");
     const [clueInput, setClueInput] = useState("");
-    const [myId, setMyId] = useState<string>("");
-
-    // Moved localDial state up to prevent unmount loss
+    const [myId, setMyId] = useState("");
     const [localDial, setLocalDial] = useState(50);
+    const socketRef = useRef<PartySocket | null>(null);
+    const usernameRef = useRef(username); // Stable ref for reconnection
 
-    // Sync localDial broadly to game state when transitioning to guessing
+    // Keep username ref current
+    useEffect(() => { usernameRef.current = username; }, [username]);
+
+    // Reset localDial when entering guessing phase
     useEffect(() => {
         if (game.phase === "guessing") {
             setLocalDial(game.dialValue);
         }
-    }, [game.phase]); // Intentional: only reset dial value on phase change
-
-    const socketRef = useRef<PartySocket | null>(null);
+    }, [game.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const send = useCallback((msg: ClientMessage) => {
         socketRef.current?.send(JSON.stringify(msg));
@@ -165,15 +156,13 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
     useEffect(() => {
         const rawHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
         const host = rawHost.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-        const socket = new PartySocket({
-            host,
-            room: roomCode,
-        });
+        const socket = new PartySocket({ host, room: roomCode });
         socketRef.current = socket;
 
+        // "open" fires on initial connect AND on every auto-reconnect
         socket.addEventListener("open", () => {
             setConnStatus("connected");
-            send({ type: "join", username });
+            socket.send(JSON.stringify({ type: "join", username: usernameRef.current }));
         });
 
         socket.addEventListener("message", (ev: MessageEvent) => {
@@ -184,7 +173,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
                 } else if (msg.type === "game_state") {
                     setGame(msg.state);
                 }
-            } catch { /* ignore */ }
+            } catch { /* ignore malformed */ }
         });
 
         socket.addEventListener("error", () => setConnStatus("error"));
@@ -193,8 +182,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
         );
 
         return () => { socket.close(); };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomCode, username]);
+    }, [roomCode]); // Intentional: don't re-create socket when username changes, use ref instead
 
     const isClueGiver = !!myId && myId === game.clueGiverId;
     const isHost = !!myId && myId === game.hostId;
@@ -208,23 +196,18 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
         });
     }, [send]);
 
-    // ── Render Phase Blocks (Now directly generating JSX) ─────────────────
+    const handleReset = useCallback(() => send({ type: "reset_game" }), [send]);
+    const handlePlayAgain = useCallback(() => send({ type: "play_again" }), [send]);
 
+    // ─── PHASE: LOBBY ─────────────────────────────────────────────────────────
     if (game.phase === "lobby") {
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
-                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={() => send({ type: "reset_game" })} />
+                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
                 <div className="glass-card dual-border" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-                    <div style={{
-                        display: "flex", justifyContent: "space-between",
-                        alignItems: "center", marginBottom: "1rem",
-                    }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                         <h2 style={{ fontWeight: 700, fontSize: "1rem" }}>Players in Lobby</h2>
-                        <span style={{
-                            background: "rgba(139,92,246,0.15)", color: "var(--accent-violet)",
-                            border: "1px solid rgba(139,92,246,0.3)", borderRadius: "999px",
-                            padding: "0.125rem 0.625rem", fontSize: "0.75rem", fontWeight: 700,
-                        }}>{game.players.length} / 8</span>
+                        <span className="player-count-badge">{game.players.length} / 8</span>
                     </div>
                     {game.players.length === 0 ? (
                         <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)" }}>
@@ -240,17 +223,13 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
                     <button
                         className="wl-btn dual-btn"
                         onClick={() => send({ type: "start_game" })}
-                        disabled={game.players.length < 1}
+                        disabled={game.players.length < 2}
                     >
-                        🚀 {game.players.length < 2 ? "Waiting for players" : "Start Game (Host)"}
+                        🚀 {game.players.length < 2 ? "Need 2+ players" : "Start Game"}
                     </button>
                 ) : (
-                    <div style={{
-                        textAlign: "center", padding: "0.875rem", borderRadius: "12px",
-                        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-                        color: "var(--text-muted)", fontSize: "0.875rem",
-                    }}>
-                        ⏳ Waiting for Host (👑 {game.players.find(p => p.id === game.hostId)?.username ?? "Host"}) to start game…
+                    <div className="waiting-host-msg">
+                        ⏳ Waiting for Host ({game.players.find(p => p.id === game.hostId)?.username ?? "…"}) to start…
                     </div>
                 )}
 
@@ -261,10 +240,11 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
         );
     }
 
+    // ─── PHASE: WRITING CLUE ──────────────────────────────────────────────────
     if (game.phase === "writing_clue") {
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
-                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={() => send({ type: "reset_game" })} />
+                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
                 <ConceptBadge concept={game.concept} />
 
                 {isClueGiver ? (
@@ -275,26 +255,25 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
                                 Give a one-word clue
                             </h2>
                         </div>
+
+                        {/* Target Dial — read-only, shows where the target is */}
                         <div className="glass-card dual-border" style={{ padding: "1.5rem", marginBottom: "1.5rem", textAlign: "center" }}>
-                            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.75rem" }}>
-                                🎯 Your Target
+                            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.5rem" }}>
+                                🎯 Your Target Position
                             </p>
-                            <div style={{ position: "relative", marginBottom: "0.5rem" }} className="dial-track-wrap">
-                                <div className="target-marker" style={{ left: `${game.targetValue}%` }}>
-                                    {game.targetValue}
-                                </div>
-                                <Dial
-                                    value={game.targetValue}
-                                    readOnly
-                                    leftLabel={game.concept?.left}
-                                    rightLabel={game.concept?.right}
-                                />
-                            </div>
-                            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "1rem" }}>
-                                The guessers will try to land here ↑
+                            <Dial
+                                value={game.targetValue}
+                                readOnly
+                                leftLabel={game.concept?.left}
+                                rightLabel={game.concept?.right}
+                                targetValue={game.targetValue}
+                            />
+                            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+                                The guessers will try to land on the gold marker ↑
                             </p>
                         </div>
 
+                        {/* Clue input form */}
                         <div className="glass-card" style={{ padding: "1.5rem" }}>
                             <form
                                 onSubmit={(e) => {
@@ -313,7 +292,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
                                     type="text"
                                     placeholder="e.g. Volcano"
                                     value={clueInput}
-                                    onChange={e => setClueInput(e.target.value.slice(0, 40))}
+                                    onChange={(e) => setClueInput(e.target.value.slice(0, 40))}
                                     autoFocus
                                     autoComplete="off"
                                 />
@@ -342,46 +321,42 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
         );
     }
 
+    // ─── PHASE: GUESSING ──────────────────────────────────────────────────────
     if (game.phase === "guessing") {
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
-                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={() => send({ type: "reset_game" })} />
+                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
                 <ConceptBadge concept={game.concept} />
 
                 <div className="glass-card dual-border" style={{ padding: "1.5rem", marginBottom: "1.25rem" }}>
-                    <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+                    <div style={{ textAlign: "center", marginBottom: "1rem" }}>
                         <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.5rem" }}>
                             {isClueGiver ? "Your clue" : "The clue is"}
                         </p>
                         <p className="clue-display">&ldquo;{game.clue}&rdquo;</p>
                     </div>
 
-                    <div className="dial-track-wrap" style={{ marginBottom: "1.5rem" }}>
-                        {isClueGiver && (
-                            <div className="target-marker" style={{ left: `${game.targetValue}%` }}>
-                                🎯
-                            </div>
-                        )}
-                        <Dial
-                            value={isClueGiver ? game.dialValue : localDial}
-                            onChange={isClueGiver ? undefined : handleDialChange}
-                            readOnly={isClueGiver}
-                            leftLabel={game.concept?.left}
-                            rightLabel={game.concept?.right}
-                        />
-                    </div>
+                    <Dial
+                        value={isClueGiver ? game.dialValue : localDial}
+                        onChange={isClueGiver ? undefined : handleDialChange}
+                        readOnly={isClueGiver}
+                        leftLabel={game.concept?.left}
+                        rightLabel={game.concept?.right}
+                        targetValue={isClueGiver ? game.targetValue : undefined}
+                    />
 
                     {!isClueGiver && (
                         <button
                             className="wl-btn dual-btn"
                             onClick={() => send({ type: "lock_in" })}
+                            style={{ marginTop: "1rem" }}
                         >
                             🔒 Lock In — {Math.round(localDial)}
                         </button>
                     )}
                     {isClueGiver && (
-                        <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-                            The guessers are deliberating…
+                        <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic", marginTop: "1rem" }}>
+                            Watching the guessers move the needle…
                         </p>
                     )}
                 </div>
@@ -391,6 +366,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
         );
     }
 
+    // ─── PHASE: REVEALED ──────────────────────────────────────────────────────
     if (game.phase === "revealed") {
         const score = game.score ?? 0;
         const tier = scoreTier(score);
@@ -398,7 +374,7 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
 
         return (
             <div className="phase-enter" style={{ width: "100%", maxWidth: "480px", margin: "0 auto" }}>
-                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={() => send({ type: "reset_game" })} />
+                <StatusBar connStatus={connStatus} phase={game.phase} isHost={isHost} onReset={handleReset} />
                 <ConceptBadge concept={game.concept} />
 
                 <div className="glass-card dual-border" style={{ padding: "2rem 1.5rem", marginBottom: "1.25rem", textAlign: "center" }}>
@@ -406,36 +382,30 @@ export default function GameClient({ roomCode, username }: { roomCode: string, u
                         Result
                     </p>
                     <div className="score-number" style={{ color }}>{score}</div>
-                    <div style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "0.5rem", marginBottom: "1.75rem", color }}>
+                    <div style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "0.5rem", marginBottom: "1.5rem", color }}>
                         {tier}
                     </div>
 
-                    <div className="dial-track-wrap" style={{ marginBottom: "0.75rem" }}>
-                        <div className="target-marker" style={{ left: `${game.targetValue}%` }}>
-                            {game.targetValue}
-                        </div>
-                        <div className="guess-marker" style={{ left: `${game.dialValue}%` }} />
-                        <Dial
-                            value={game.dialValue}
-                            readOnly
-                            leftLabel={game.concept?.left}
-                            rightLabel={game.concept?.right}
-                        />
-                    </div>
+                    <Dial
+                        value={game.dialValue}
+                        readOnly
+                        leftLabel={game.concept?.left}
+                        rightLabel={game.concept?.right}
+                        targetValue={game.targetValue}
+                        guessValue={game.dialValue}
+                    />
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.75rem" }}>
+                        🟡 Target: {game.targetValue} &nbsp;•&nbsp; 🟣 Guess: {game.dialValue}
+                    </p>
                 </div>
 
-                {isHost && (
-                    <button className="wl-btn dual-btn" onClick={() => send({ type: "play_again" })}>
-                        🔄 Play Again (Host)
+                {isHost ? (
+                    <button className="wl-btn dual-btn" onClick={handlePlayAgain}>
+                        🔄 Play Again
                     </button>
-                )}
-                {!isHost && (
-                    <div style={{
-                        textAlign: "center", padding: "0.875rem", borderRadius: "12px",
-                        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-                        color: "var(--text-muted)", fontSize: "0.875rem",
-                    }}>
-                        ⏳ Waiting for Host (👑) to click Play Again…
+                ) : (
+                    <div className="waiting-host-msg">
+                        ⏳ Waiting for Host to start next round…
                     </div>
                 )}
 
