@@ -80,7 +80,20 @@ export class WavelengthRoom implements DurableObject {
     private state: GameState = defaultState();
     private nextId = 0;
 
-    constructor(readonly ctx: DurableObjectState, readonly env: Env) { }
+    constructor(readonly ctx: DurableObjectState, readonly env: Env) {
+        this.ctx.blockConcurrencyWhile(async () => {
+            const storedState = await this.ctx.storage.get<GameState>("game_state");
+            if (storedState) this.state = storedState;
+            const storedNextId = await this.ctx.storage.get<number>("nextId");
+            if (storedNextId) this.nextId = storedNextId;
+        });
+    }
+
+    private saveState() {
+        // Fire and forget storage writes
+        this.ctx.storage.put("game_state", this.state);
+        this.ctx.storage.put("nextId", this.nextId);
+    }
 
     async fetch(request: Request): Promise<Response> {
         if (request.headers.get("Upgrade") !== "websocket") {
@@ -118,6 +131,7 @@ export class WavelengthRoom implements DurableObject {
         if (this.state.clueGiverId === connId && this.state.phase !== "revealed") {
             this.state = { ...defaultState(), players: this.state.players, hostId: this.state.hostId };
         }
+        this.saveState();
         this.broadcast(this.snapshot());
     }
 
@@ -195,6 +209,7 @@ export class WavelengthRoom implements DurableObject {
                 break;
             }
         }
+        this.saveState();
         this.broadcast(this.snapshot());
     }
 
