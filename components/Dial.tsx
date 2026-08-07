@@ -66,7 +66,7 @@ export default function Dial({
     const RADIUS = 130; // SVG coordinate radius
     const CENTER_X = 150;
     const CENTER_Y = 150;
-    const STROKE_WIDTH = 18;
+    const STROKE_WIDTH = 36;
 
     const needleDeg = valueToDeg(value);
 
@@ -133,8 +133,8 @@ export default function Dial({
     for (let i = 0; i <= 10; i++) {
         const deg = (i / 10) * 180;
         const rad = ((180 - deg) * Math.PI) / 180;
-        const outerR = RADIUS + 4;
-        const innerR = RADIUS - (i % 5 === 0 ? 12 : 6);
+        const outerR = RADIUS + 18;
+        const innerR = RADIUS - (i % 5 === 0 ? 20 : 18);
         ticks.push({
             x1: CENTER_X + Math.cos(rad) * innerR,
             y1: CENTER_Y - Math.sin(rad) * innerR,
@@ -152,9 +152,9 @@ export default function Dial({
         const my = CENTER_Y - Math.sin(markerRad) * RADIUS;
         return (
             <g key={`marker-${color}`}>
-                <circle cx={mx} cy={my} r={10} fill={color} stroke="#fff" strokeWidth={2.5} style={{ filter: `drop-shadow(0 0 6px ${color})` }} />
+                <circle cx={mx} cy={my} r={14} fill={color} stroke="#fff" strokeWidth={2.5} style={{ filter: `drop-shadow(0 0 8px ${color})` }} />
                 {label && (
-                    <text x={mx} y={my + 4} textAnchor="middle" fill="#000" fontSize="8" fontWeight="800">
+                    <text x={mx} y={my + 4} textAnchor="middle" fill="#000" fontSize="10" fontWeight="800">
                         {label}
                     </text>
                 )}
@@ -188,7 +188,7 @@ export default function Dial({
                 </defs>
 
                 {/* Background arc (faint) */}
-                <path d={arcPath} fill="none" stroke="url(#dial-bg)" strokeWidth={STROKE_WIDTH + 8} strokeLinecap="round" />
+                <path d={arcPath} fill="none" stroke="url(#dial-bg)" strokeWidth={STROKE_WIDTH + 14} strokeLinecap="round" />
 
                 {/* Main colored arc */}
                 <path d={arcPath} fill="none" stroke="url(#dial-gradient)" strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
@@ -211,19 +211,19 @@ export default function Dial({
                     x1={CENTER_X} y1={CENTER_Y}
                     x2={needleX} y2={needleY}
                     stroke="#fff"
-                    strokeWidth={3}
+                    strokeWidth={4}
                     strokeLinecap="round"
                     style={{
                         transition: readOnly ? "all 0.15s ease" : "none",
-                        filter: "drop-shadow(0 0 4px rgba(255,255,255,0.5))",
+                        filter: "drop-shadow(0 0 6px rgba(255,255,255,0.6))",
                     }}
                 />
 
                 {/* Needle hub */}
-                <circle cx={CENTER_X} cy={CENTER_Y} r={8} fill="var(--accent-violet)" stroke="#fff" strokeWidth={2.5} />
+                <circle cx={CENTER_X} cy={CENTER_Y} r={10} fill="var(--accent-violet)" stroke="#fff" strokeWidth={3} />
 
                 {/* Needle tip glow */}
-                <circle cx={needleX} cy={needleY} r={5} fill="#fff" style={{ filter: "drop-shadow(0 0 6px rgba(139,92,246,0.8))" }} />
+                <circle cx={needleX} cy={needleY} r={6} fill="#fff" style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.9))" }} />
             </svg>
 
             {/* Value display */}
